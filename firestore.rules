@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function isAdmin() { return request.auth.token.role == 'admin'; }
+    function myTenant(id) { return request.auth.token.tenantId == id; }
+    match /credentials/{id} { allow read, write: if false; } // Admin SDK only
+    match /businesses/{id} {
+      allow read: if isAdmin() || myTenant(id);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (myTenant(id) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assistantConfig']));
+    }
+    match /reservations/{id} {
+      allow read: if isAdmin() || myTenant(resource.data.tenantId);
+      allow create: if isAdmin() || myTenant(request.resource.data.tenantId);
+      allow update, delete: if isAdmin() || myTenant(resource.data.tenantId);
+    }
+    match /webhook_events/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /vapi_calls/{id} {
+      allow read: if isAdmin() || myTenant(resource.data.tenantId);
+      allow write: if false;
+    }
+  }
+}
